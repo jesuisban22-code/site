@@ -564,7 +564,6 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
         buf.set(enc(value), i);
         return 1;
       }
-      // exact markers produced by: python tttttt.py --embed --template
       const AUTH='NEX_AUTH_TOKEN_XXXXXXXXXXXXXXXXX'; //32
       const OWNER='NEX_OWNER_KEY_XXXXXXXXXXXXXXXXXX'; //32
       const HUB='NEX_HUB_URL_'+'X'.repeat(96-'NEX_HUB_URL_'.length); //96
