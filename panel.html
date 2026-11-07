@@ -894,35 +894,52 @@ async function loadDir(){
   if(!p.endsWith('/')) p += '/';
   document.getElementById('file-path').value = p;
   try{
-    // server accepts / or \
     const raw = await fetch('/ls', {method:'POST', headers:H, body:p}).then(r => r.text());
     if(raw === 'auth' || raw.startsWith('<')){ toast('AUTH FAIL','error'); return; }
-    const files = JSON.parse(raw);
-    const esc = s => String(s).replace(/\\/g,'/').replace(/'/g, "\\'");
+    let files;
+    try { files = JSON.parse(raw); } catch(e){ toast('LS PARSE ERROR','error'); console.error(raw); return; }
     const list = document.getElementById('file-list');
     if(!files.length){ list.innerHTML = '<div style="color:var(--text-muted);padding:12px">empty</div>'; return; }
-    list.innerHTML = files.map(f => {
-      const path = esc(f.path || '');
-      const name = String(f.name || '').replace(/</g,'&lt;');
-      if(f.dir){
-        return '<div class="file-item" style="cursor:pointer">'
-          + '<span style="color:var(--text-main)" onclick="enterDir(\''+path+'\')">[DIR] '+name+'</span>'
-          + '<span style="color:var(--text-muted)">'+(f.size||'')+'</span>'
-          + '<div style="display:flex;gap:4px">'
-          + '<button class="btn btn-outline btn-sm" onclick="enterDir(\''+path+'\')">OPEN</button>'
-          + '<button class="btn btn-danger btn-sm" onclick="delFile(\''+path+'\')">DEL</button>'
-          + '</div></div>';
+    list.innerHTML = '';
+    files.forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'file-item';
+      const path = String(f.path||'').replace(/\\/g,'/');
+      const name = String(f.name||'');
+      const left = document.createElement('span');
+      left.style.color = f.dir ? 'var(--text-main)' : 'inherit';
+      left.style.cursor = f.dir ? 'pointer' : 'default';
+      left.textContent = (f.dir?'[DIR] ':'[FILE] ') + name;
+      if(f.dir) left.onclick = () => enterDir(path);
+      const size = document.createElement('span');
+      size.style.color = 'var(--text-muted)';
+      size.textContent = f.size||'';
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '4px';
+      actions.style.flexWrap = 'wrap';
+      function btn(label, cls, fn){
+        const b=document.createElement('button');
+        b.className='btn '+cls+' btn-sm';
+        b.type='button';
+        b.textContent=label;
+        b.onclick=(e)=>{ e.stopPropagation(); fn(); };
+        return b;
       }
-      return '<div class="file-item">'
-        + '<span>[FILE] '+name+'</span>'
-        + '<span style="color:var(--text-muted)">'+(f.size||'')+'</span>'
-        + '<div style="display:flex;gap:4px;flex-wrap:wrap">'
-        + '<button class="btn btn-outline btn-sm" onclick="downloadFile(\''+path+'\')">GET</button>'
-        + '<button class="btn btn-outline btn-sm" onclick="runFile(\''+path+'\')">RUN</button>'
-        + '<button class="btn btn-outline btn-sm" onclick="renameFile(\''+path+'\')">REN</button>'
-        + '<button class="btn btn-danger btn-sm" onclick="delFile(\''+path+'\')">DEL</button>'
-        + '</div></div>';
-    }).join('');
+      if(f.dir){
+        actions.appendChild(btn('OPEN','btn-outline',()=>enterDir(path)));
+        if(name!=='..') actions.appendChild(btn('DEL','btn-danger',()=>delFile(path)));
+      } else {
+        actions.appendChild(btn('GET','btn-outline',()=>downloadFile(path)));
+        actions.appendChild(btn('RUN','btn-outline',()=>runFile(path)));
+        actions.appendChild(btn('REN','btn-outline',()=>renameFile(path)));
+        actions.appendChild(btn('DEL','btn-danger',()=>delFile(path)));
+      }
+      row.appendChild(left);
+      row.appendChild(size);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
   }catch(e){ console.error(e); toast('ERROR LOADING DIR','error'); }
 }
 function enterDir(p){
@@ -933,7 +950,7 @@ function enterDir(p){
 }
 function goUp(){
   let p = document.getElementById('file-path').value.replace(/\\/g,'/');
-  if(p.length <= 3) return; // C:/
+  if(p.length <= 3) return;
   if(p.endsWith('/')) p = p.slice(0,-1);
   const i = p.lastIndexOf('/');
   document.getElementById('file-path').value = (i >= 0 ? p.slice(0,i+1) : 'C:/');

